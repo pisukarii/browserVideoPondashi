@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Browser Video Cue System</title>
+    <style>
+        body { font-family: sans-serif; background: #222; color: #eee; margin: 20px; }
+        .controls { margin-bottom: 20px; padding: 15px; background: #333; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #444; padding: 10px; text-align: left; }
+        th { background: #444; }
+        .cue-row:hover { background: #3a3a3a; }
+        .active-cue { background: #2c5e2e !important; } /* 再生中の色 */
+        input, button { padding: 8px; cursor: pointer; }
+        .btn-delete { background: #833; color: white; border: none; }
+        .btn-go { background: #28a745; color: white; font-weight: bold; padding: 10px 20px; }
+    </style>
+</head>
+<body>
+
+    <h2>🎬 Browser Cue Stack System</h2>
+
+    <div class="controls">
+        <button onclick="openDisplay()">1. 表示ウィンドウを開く</button>
+        <button onclick="saveSettings()">設定を保存 (Local)</button>
+        <button onclick="loadSettings()">設定を読み込み</button>
+        <hr>
+        <input type="text" id="cueName" placeholder="Cue名 (例: OP映像)">
+        <input type="text" id="cueUrl" placeholder="URL (画像・動画・YouTube)">
+        <button onclick="addCue()">Cue追加</button>
+    </div>
+
+    <div style="margin-bottom: 10px;">
+        <button class="btn-go" onclick="fireNextCue()">NEXT CUE (GO!!)</button>
+    </div>
+
+    <table id="cueTable">
+        <thead>
+            <tr>
+                <th>No.</th>
+                <th>Cue Name</th>
+                <th>Source URL</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="cueList">
+            </tbody>
+    </table>
+
+    <script>
+        let displayWindow = null;
+        let cues = [];
+        let currentCueIndex = -1;
+
+        // 表示ウィンドウを開く
+        function openDisplay() {
+            displayWindow = window.open("", "DisplayWindow", "width=800,height=450");
+            displayWindow.document.write(`
+                <html><body style="margin:0; background:#000; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                    <div id="content" style="width:100%; height:100%;"></div>
+                </body></html>
+            `);
+            displayWindow.document.title = "DISPLAY OUT";
+        }
+
+        // Cueを追加
+        function addCue() {
+            const name = document.getElementById('cueName').value;
+            const url = document.getElementById('cueUrl').value;
+            if(!url) return alert("URLを入力してください");
+
+            cues.push({ name, url });
+            renderCues();
+            document.getElementById('cueName').value = "";
+            document.getElementById('cueUrl').value = "";
+        }
+
+        // Cueリストを描画
+        function renderCues() {
+            const list = document.getElementById('cueList');
+            list.innerHTML = "";
+            cues.forEach((cue, index) => {
+                const row = document.createElement('tr');
+                row.className = "cue-row" + (index === currentCueIndex ? " active-cue" : "");
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${cue.name}</td>
+                    <td style="font-size:0.8em; color:#aaa;">${cue.url}</td>
+                    <td>
+                        <button onclick="moveCue(${index}, -1)">↑</button>
+                        <button onclick="moveCue(${index}, 1)">↓</button>
+                        <button class="btn-delete" onclick="deleteCue(${index})">削除</button>
+                        <button onclick="fireCue(${index})">選択</button>
+                    </td>
+                `;
+                list.appendChild(row);
+            });
+        }
+
+        // ポン出し実行
+        function fireCue(index) {
+            if (!displayWindow || displayWindow.closed) {
+                alert("表示ウィンドウが開かれていません！");
+                return;
+            }
+            currentCueIndex = index;
+            const cue = cues[index];
+            const container = displayWindow.document.getElementById('content');
+            
+            // ファイル形式の簡易判別
+            if (cue.url.match(/\.(mp4|webm|ogg)$/i)) {
+                container.innerHTML = `<video src="${cue.url}" autoplay style="width:100%; height:100%; object-fit:contain;"></video>`;
+            } else {
+                container.innerHTML = `<img src="${cue.url}" style="width:100%; height:100%; object-fit:contain;">`;
+            }
+            renderCues();
+        }
+
+        // 次のCueへ
+        function fireNextCue() {
+            let nextIndex = currentCueIndex + 1;
+            if (nextIndex < cues.length) {
+                fireCue(nextIndex);
+            }
+        }
+
+        // 削除・並び替え
+        function deleteCue(index) { cues.splice(index, 1); renderCues(); }
+        function moveCue(index, direction) {
+            const target = index + direction;
+            if (target < 0 || target >= cues.length) return;
+            [cues[index], cues[target]] = [cues[target], cues[index]];
+            renderCues();
+        }
+
+        // 参考サイトの機能をリスペクトした保存機能
+        function saveSettings() {
+            localStorage.setItem('cueData', JSON.stringify(cues));
+            alert("ブラウザに保存しました");
+        }
+
+        function loadSettings() {
+            const saved = localStorage.getItem('cueData');
+            if (saved) {
+                cues = JSON.parse(saved);
+                renderCues();
+            }
+        }
+    </script>
+</body>
+</html>
