@@ -2,148 +2,228 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Browser Video Cue System</title>
+    <title>Visual Cue Stack Player</title>
     <style>
-        body { font-family: sans-serif; background: #222; color: #eee; margin: 20px; }
-        .controls { margin-bottom: 20px; padding: 15px; background: #333; border-radius: 8px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #444; padding: 10px; text-align: left; }
-        th { background: #444; }
-        .cue-row:hover { background: #3a3a3a; }
-        .active-cue { background: #2c5e2e !important; } /* 再生中の色 */
-        input, button { padding: 8px; cursor: pointer; }
-        .btn-delete { background: #833; color: white; border: none; }
-        .btn-go { background: #28a745; color: white; font-weight: bold; padding: 10px 20px; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #1a1a1a; color: #e0e0e0; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        .header { background: #333; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #444; }
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        
+        /* コントロールパネル */
+        .sidebar { width: 350px; background: #252525; padding: 20px; border-right: 1px solid #444; overflow-y: auto; }
+        .input-group { background: #333; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .input-group h3 { margin-top: 0; font-size: 14px; color: #aaa; text-transform: uppercase; }
+        label { display: block; margin-bottom: 5px; font-size: 12px; }
+        input[type="text"], input[type="file"] { width: 100%; margin-bottom: 10px; background: #111; border: 1px solid #555; color: white; padding: 5px; box-sizing: border-box; }
+        
+        /* Cueリストエリア */
+        .content { flex: 1; padding: 20px; overflow-y: auto; background: #111; }
+        .go-area { margin-bottom: 20px; }
+        .btn-go { background: #d32f2f; color: white; border: none; padding: 15px 40px; font-size: 24px; font-weight: bold; border-radius: 4px; cursor: pointer; width: 100%; box-shadow: 0 4px #8b0000; }
+        .btn-go:active { box-shadow: 0 0; transform: translateY(4px); }
+        
+        table { width: 100%; border-collapse: collapse; background: #222; }
+        th, td { border: 1px solid #333; padding: 12px; text-align: left; }
+        th { background: #444; font-size: 12px; }
+        .cue-row { cursor: pointer; }
+        .cue-row:hover { background: #2c2c2c; }
+        .cue-row.active { background: #1b5e20; border-left: 5px solid #4caf50; }
+        
+        button { cursor: pointer; padding: 5px 10px; border-radius: 3px; border: 1px solid #555; background: #444; color: white; }
+        button:hover { background: #555; }
+        .btn-blue { background: #0277bd; border: none; }
+        .btn-save { background: #2e7d32; border: none; }
     </style>
 </head>
 <body>
 
-    <h2>🎬 Browser Cue Stack System</h2>
-
-    <div class="controls">
-        <button onclick="openDisplay()">1. 表示ウィンドウを開く</button>
-        <button onclick="saveSettings()">設定を保存 (Local)</button>
-        <button onclick="loadSettings()">設定を読み込み</button>
-        <hr>
-        <input type="text" id="cueName" placeholder="Cue名 (例: OP映像)">
-        <input type="text" id="cueUrl" placeholder="URL (画像・動画・YouTube)">
-        <button onclick="addCue()">Cue追加</button>
+    <div class="header">
+        <div style="font-weight: bold; font-size: 1.2em;">🎥 BROWSER CUE STACK</div>
+        <div>
+            <button class="btn-blue" onclick="openDisplay()">1. 表示ウィンドウを起動</button>
+            <button class="btn-save" onclick="saveToLocalStorage()">設定を保存</button>
+            <button onclick="loadFromLocalStorage()">設定を読み込み</button>
+        </div>
     </div>
 
-    <div style="margin-bottom: 10px;">
-        <button class="btn-go" onclick="fireNextCue()">NEXT CUE (GO!!)</button>
-    </div>
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="input-group">
+                <h3>Cue登録</h3>
+                <label>名前</label>
+                <input type="text" id="cueName" placeholder="例: OPムービー">
+                
+                <label>YouTube URL または 画像URL</label>
+                <input type="text" id="cueUrl" placeholder="https://www.youtube.com/watch?v=...">
+                
+                <label>または ローカルファイルを選択</label>
+                <input type="file" id="fileInput" accept="video/*,image/*">
+                
+                <button style="width:100%; margin-top:10px;" onclick="addCue()">Cueリストに追加</button>
+            </div>
+            <p style="font-size: 11px; color: #888;">※YouTubeは埋め込み許可されている動画のみ再生可能です。ファイルはブラウザのメモリに一時保存されます。</p>
+        </div>
 
-    <table id="cueTable">
-        <thead>
-            <tr>
-                <th>No.</th>
-                <th>Cue Name</th>
-                <th>Source URL</th>
-                <th>操作</th>
-            </tr>
-        </thead>
-        <tbody id="cueList">
-            </tbody>
-    </table>
+        <div class="content">
+            <div class="go-area">
+                <button class="btn-go" onclick="fireNext()">GO / NEXT</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th width="40">No</th>
+                        <th>NAME</th>
+                        <th>TYPE</th>
+                        <th width="150">ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody id="cueList"></tbody>
+            </table>
+        </div>
+    </div>
 
     <script>
         let displayWindow = null;
         let cues = [];
-        let currentCueIndex = -1;
+        let currentIndex = -1;
 
-        // 表示ウィンドウを開く
+        // 表示用ウィンドウのHTML構造をBlobで作成してセキュリティ制限を回避
         function openDisplay() {
-            displayWindow = window.open("", "DisplayWindow", "width=800,height=450");
-            displayWindow.document.write(`
-                <html><body style="margin:0; background:#000; display:flex; align-items:center; justify-content:center; overflow:hidden;">
-                    <div id="content" style="width:100%; height:100%;"></div>
-                </body></html>
-            `);
-            displayWindow.document.title = "DISPLAY OUT";
+            const displayHtml = `
+                <html>
+                <head>
+                    <title>DISPLAY OUT</title>
+                    <style>
+                        body { margin:0; background:#000; overflow:hidden; display:flex; align-items:center; justify-content:center; width:100vw; height:100vh; }
+                        #viewer { width:100%; height:100%; object-fit: contain; display: flex; align-items: center; justify-content: center; }
+                        iframe, video, img { width:100%; height:100%; border:none; object-fit: contain; }
+                    </style>
+                </head>
+                <body><div id="viewer"></div></body>
+                </html>
+            `;
+            const blob = new Blob([displayHtml], {type: 'text/html'});
+            const url = URL.createObjectURL(blob);
+            displayWindow = window.open(url, "DisplayOut", "width=1280,height=720");
         }
 
-        // Cueを追加
-        function addCue() {
-            const name = document.getElementById('cueName').value;
-            const url = document.getElementById('cueUrl').value;
-            if(!url) return alert("URLを入力してください");
+        // Cue追加
+        async function addCue() {
+            const name = document.getElementById('cueName').value || "No Name";
+            const urlInput = document.getElementById('cueUrl').value;
+            const fileInput = document.getElementById('fileInput');
+            let finalUrl = urlInput;
+            let type = "URL";
 
-            cues.push({ name, url });
-            renderCues();
+            // ファイルが選択されている場合
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                finalUrl = await toBase64(file); // ローカルストレージ保存のためにBase64化
+                type = file.type.includes('video') ? "Video" : "Image";
+            } else if (urlInput.includes("youtube.com") || urlInput.includes("youtu.be")) {
+                type = "YouTube";
+                finalUrl = formatYouTubeUrl(urlInput);
+            }
+
+            cues.push({ name, url: finalUrl, type });
+            render();
+            
+            // 入力リセット
             document.getElementById('cueName').value = "";
             document.getElementById('cueUrl').value = "";
+            document.getElementById('fileInput').value = "";
         }
 
-        // Cueリストを描画
-        function renderCues() {
-            const list = document.getElementById('cueList');
-            list.innerHTML = "";
-            cues.forEach((cue, index) => {
-                const row = document.createElement('tr');
-                row.className = "cue-row" + (index === currentCueIndex ? " active-cue" : "");
-                row.innerHTML = `
-                    <td>${index + 1}</td>
-                    <td>${cue.name}</td>
-                    <td style="font-size:0.8em; color:#aaa;">${cue.url}</td>
-                    <td>
-                        <button onclick="moveCue(${index}, -1)">↑</button>
-                        <button onclick="moveCue(${index}, 1)">↓</button>
-                        <button class="btn-delete" onclick="deleteCue(${index})">削除</button>
-                        <button onclick="fireCue(${index})">選択</button>
-                    </td>
-                `;
-                list.appendChild(row);
+        function formatYouTubeUrl(url) {
+            let id = "";
+            if(url.includes("v=")) id = url.split("v=")[1].split("&")[0];
+            else if(url.includes("youtu.be/")) id = url.split("youtu.be/")[1];
+            return `https://www.youtube.com/embed/${id}?autoplay=1&rel=0`;
+        }
+
+        function toBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
             });
         }
 
-        // ポン出し実行
-        function fireCue(index) {
+        // 描画
+        function render() {
+            const tbody = document.getElementById('cueList');
+            tbody.innerHTML = "";
+            cues.forEach((cue, i) => {
+                const tr = document.createElement('tr');
+                tr.className = `cue-row ${i === currentIndex ? 'active' : ''}`;
+                tr.innerHTML = `
+                    <td>${i + 1}</td>
+                    <td>${cue.name}</td>
+                    <td><small>${cue.type}</small></td>
+                    <td>
+                        <button onclick="move(${i}, -1)">↑</button>
+                        <button onclick="move(${i}, 1)">↓</button>
+                        <button style="color:#ff4444" onclick="remove(${i})">×</button>
+                        <button onclick="fire(${i})">SELECT</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 送出実行
+        function fire(index) {
             if (!displayWindow || displayWindow.closed) {
-                alert("表示ウィンドウが開かれていません！");
+                alert("表示ウィンドウが開かれていません。「1. 表示ウィンドウを起動」を押してください。");
                 return;
             }
-            currentCueIndex = index;
+            currentIndex = index;
             const cue = cues[index];
-            const container = displayWindow.document.getElementById('content');
+            const viewer = displayWindow.document.getElementById('viewer');
             
-            // ファイル形式の簡易判別
-            if (cue.url.match(/\.(mp4|webm|ogg)$/i)) {
-                container.innerHTML = `<video src="${cue.url}" autoplay style="width:100%; height:100%; object-fit:contain;"></video>`;
+            if (cue.type === "YouTube") {
+                viewer.innerHTML = `<iframe src="${cue.url}" allow="autoplay; encrypted-media; fullscreen"></iframe>`;
+            } else if (cue.type === "Video") {
+                viewer.innerHTML = `<video src="${cue.url}" autoplay controls style="width:100%"></video>`;
             } else {
-                container.innerHTML = `<img src="${cue.url}" style="width:100%; height:100%; object-fit:contain;">`;
+                viewer.innerHTML = `<img src="${cue.url}">`;
             }
-            renderCues();
+            render();
         }
 
-        // 次のCueへ
-        function fireNextCue() {
-            let nextIndex = currentCueIndex + 1;
-            if (nextIndex < cues.length) {
-                fireCue(nextIndex);
+        function fireNext() {
+            if (currentIndex < cues.length - 1) {
+                fire(currentIndex + 1);
             }
         }
 
-        // 削除・並び替え
-        function deleteCue(index) { cues.splice(index, 1); renderCues(); }
-        function moveCue(index, direction) {
-            const target = index + direction;
+        function move(index, dir) {
+            let target = index + dir;
             if (target < 0 || target >= cues.length) return;
             [cues[index], cues[target]] = [cues[target], cues[index]];
-            renderCues();
+            render();
         }
 
-        // 参考サイトの機能をリスペクトした保存機能
-        function saveSettings() {
-            localStorage.setItem('cueData', JSON.stringify(cues));
-            alert("ブラウザに保存しました");
+        function remove(index) {
+            cues.splice(index, 1);
+            render();
         }
 
-        function loadSettings() {
-            const saved = localStorage.getItem('cueData');
-            if (saved) {
-                cues = JSON.parse(saved);
-                renderCues();
+        // 保存・読み込み (Local Storage)
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem('pondashi_cues', JSON.stringify(cues));
+                alert("保存しました。");
+            } catch (e) {
+                alert("容量オーバーで保存できませんでした。動画ファイルをBase64で保存すると容量を激しく消費します。外部URL推奨です。");
+            }
+        }
+
+        function loadFromLocalStorage() {
+            const data = localStorage.getItem('pondashi_cues');
+            if (data) {
+                cues = JSON.parse(data);
+                render();
             }
         }
     </script>
